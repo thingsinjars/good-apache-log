@@ -47,6 +47,8 @@ ApacheHttpdFormatter.prototype._transform = function (data, _encoding, next) {
     , '%h': source.remoteAddress || '-'
     , '%l': '-'
     , '%u': '-'
+    , '%D': data.responseTime
+    , '%f': data.path
     , '%U': data.path
     , '%t': timestamp.format(MOMENT_FORMAT)
     , '%r': mkRequestLine(data)
@@ -55,6 +57,9 @@ ApacheHttpdFormatter.prototype._transform = function (data, _encoding, next) {
     , '%b': responseBytes(data)
     , '%{Referer}i': source.referer || '-'
     , '%{User-agent}i': source.userAgent || '-'
+    , '%I': (data.headers && JSON.stringify(data.headers).length) + (data.requestPayload || 0) || '-'
+    , '%O': (data.responsePayload && JSON.stringify(data.responsePayload).length) || '-'
+    , '%{Host}i': data.headers && data.headers.host || '-'
     }
 
   var line = this.format.replace(FORMAT_RE, replacer)
@@ -64,11 +69,17 @@ ApacheHttpdFormatter.prototype._transform = function (data, _encoding, next) {
   next(null)
 
   function replacer(match, param) {
-    var val = replacements[match]
+    var val = replacements[match];
+    var xMatch;
 
     if (!val) {
-      console.error('WARNING: Format %j not implemented; please submit an issue or PR: %s', match, Pkg.bugs.url)
-      val = '-'
+      xMatch = match.match(/%{(X-[^}]*)/);
+      if(xMatch && xMatch.length > 1) {
+        val = replacements[xMatch[1].toLowerCase()] || '-';
+      } else {
+        console.error('WARNING: Format %j not implemented; please submit an issue or PR: %s', match, Pkg.bugs.url)
+        val = '-'
+      }
     }
 
     debug('Replace %s (%s): %s', match, val)
